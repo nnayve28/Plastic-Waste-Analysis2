@@ -126,7 +126,7 @@ population_plastics <- read_csv("data/population_plastics.csv") |>
   ))
 ```
 
-### Do More Volunteers Mean More Plastic Found?
+### Do More Volunteers Mean More Polyethylene Found?
 
 We started by examining whether countries with more volunteers tend to collect more polyethylene, one of the most widely used plastic types globally, found in everyday items like bags, bottles, trash cans, and containers. Specifically, we looked at both high density polyethylene (HDPE), found in rigid items like milk jugs and shampoo bottles, and low density polyethylene (LDPE), found in flexible items like plastic bags and squeeze bottles. 
 
