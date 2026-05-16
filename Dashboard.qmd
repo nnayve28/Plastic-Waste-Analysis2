@@ -3,6 +3,7 @@ title: "Visualizing Plastics: Waste Composition and Environmental Cost"
 author: "Nathan Lee, Noah Nayve, Ryan Ekdahl, Taiga Sobajima"
 format:
   dashboard:
+    scrolling: true
     orientation: rows
     theme: flatly
     logo: "logo.png"
@@ -43,8 +44,13 @@ library(sf)
 ```{r}
 #| label: load-data
 #| message: false
-plastics <- read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/main/data/2021/2021-01-26/plastics.csv')
-population_plastics <- read_csv("data/population_plastics.csv")
+
+population_plastics <- read_csv("data/population_plastics.csv") |>
+  mutate(country = case_when(
+    country == "United States Of America" ~ "United States of America",
+    country == "Taiwan_ Republic Of China (Roc)" ~ "Taiwan",
+    TRUE ~ country
+  ))
 ```
 
 ```{r}
@@ -103,9 +109,23 @@ gt_style <- function(gt_obj) {
 }
 ```
 
-# Overview
+# Main
 
-## Row 1 {height="30%"}
+## Row 1 {height="500px"}
+
+### Bubble Plot {width="70%" .tabset}
+
+#### Overview
+f
+
+#### Bubble Plots
+bubble plot will be here
+x axis = plastic type count
+y axis = 
+
+### General {width="30%"}
+
+#### Value Boxes
 
 ```{r}
 #| content: valuebox
@@ -131,33 +151,6 @@ list(
 
 ```{r}
 #| content: valuebox
-#| title: "PET Drop: Low → High Biodiversity"
-
-pet_diff <- population_plastics |>
-  filter(
-    parent_company == "Grand Total", grand_total > 0,
-    !is.na(threatened_species), !is.na(forested_area)
-    ) |>
-  mutate(
-    pet_prop = pet/grand_total, hdpe_prop = hdpe/grand_total,
-    threatened_species_level = cut(threatened_species,
-                                   breaks = c(0, 131, 556, Inf),
-                                   labels = c("Low (< 131)", "Medium (131-556)", "High (> 556)"))
-    ) |>
-  group_by(threatened_species_level) |>
-  summarize(avg_pet = mean(pet_prop, na.rm = TRUE)) |>
-  summarize(pet_drop = first(avg_pet) - last(avg_pet)) |>
-  pull(pet_drop)
-
-list(
-  icon  = "arrow-down",
-  color = "#D3D3D3",
-  value = paste0(round(pet_diff * 100, 1), "%")
-)
-```
-
-```{r}
-#| content: valuebox
 #| title: "Significant Predictor of PET"
 
 list(
@@ -167,127 +160,9 @@ list(
 )
 ```
 
-## Row 2 {height="70%"}
+## Row 2
 
-### Tables {.tabset}
-
-#### Low Coverage
-
-::: {.card}
-```{r}
-#| fig-alt: "Bar chart showing bottom 5 forest coverage countries with plastic waste breakdown"
-#| label: bottom 5 countries bar chart with plastic waste breakdown
-
-bottom5 <- plastic_ecology_summary_table |>
-  mutate(across(everything(),
-                ~replace_na(., 0))
-         ) |>
-  filter(!is.na(avg_forested)) |>
-  slice_min(avg_forested, n = 5)
-
-bottom5_forest <- ggplot(bottom5, aes(x = reorder(country, avg_forested),
-                                      y = avg_forested,
-                                      text = glue("PET: {round(avg_pet * 100, 2)}%
-                                      HDPE: {round(avg_hdpe * 100, 2)}%
-                                      LDPE: {round(avg_ldpe * 100, 2)}%
-                                      PP: {round(avg_pp * 100, 2)}%
-                                      PS: {round(avg_ps * 100, 2)}%
-                                      PVC: {round(avg_pvc * 100, 2)}%
-                                      Other: {round(avg_o * 100, 2)}%"))) +
-  geom_bar(stat = "identity",
-           fill = "#F3D4D5") +
-  coord_flip() +
-  labs(y = "Forest Coverage (%)",
-       x = "",
-       title = "Bottom 5 Forest Coverage Countries") +
-  theme_minimal()
-
-ggplotly(bottom5_forest, tooltip = "text")
-```
-
-Hover over each bar for plastic waste breakdown:  
-PET = polyester, HDPE = high density polyethylene, LDPE = low density polyethylene, PP = polypropylene, PS = polystyrene, PVC, Other
-:::
-
-#### Medium Coverage
-
-::: {.card}
-```{r}
-#| fig-alt: "Bar chart showing medium 5 forest coverage countries with plastic waste breakdown"
-#| label: medium 5 countries bar chart with plastic waste breakdown
-
-medium5 <- plastic_ecology_summary_table |>
-  mutate(across(everything(),
-                ~replace_na(., 0))
-         ) |>
-  filter(!is.na(avg_forested),
-         avg_forested >= 19) |>
-  slice_min(avg_forested, n = 5)
-
-medium5_forest <- ggplot(medium5, aes(x = reorder(country, avg_forested),
-                                      y = avg_forested,
-                                      text = glue("PET: {round(avg_pet * 100, 2)}%
-                                      HDPE: {round(avg_hdpe * 100, 2)}%
-                                      LDPE: {round(avg_ldpe * 100, 2)}%
-                                      PP: {round(avg_pp * 100, 2)}%
-                                      PS: {round(avg_ps * 100, 2)}%
-                                      PVC: {round(avg_pvc * 100, 2)}%
-                                      Other: {round(avg_o * 100, 2)}%"))) +
-  geom_bar(stat = "identity",
-           fill = "#F3D4D5") +
-  coord_flip() +
-  labs(y = "Forest Coverage (%)",
-       x = "",
-       title = "Medium 5 Forest Coverage Countries") +
-  theme_minimal()
-
-ggplotly(medium5_forest, tooltip = "text")
-```
-
-Hover over each bar for plastic waste breakdown:  
-PET = polyester, HDPE = high density polyethylene, LDPE = low density polyethylene, PP = polypropylene, PS = polystyrene, PVC, Other
-:::
-
-#### High Coverage
-
-::: {.card}
-```{r}
-#| fig-alt: "Bar chart showing top 5 forest coverage countries with plastic waste breakdown"
-#| label: top 5 countries bar chart with plastic waste breakdown
-
-high5 <- plastic_ecology_summary_table |>
-  mutate(across(everything(),
-                ~replace_na(., 0))
-         ) |>
-  filter(!is.na(avg_forested),
-         avg_forested >= 36) |>
-  slice_max(avg_forested, n = 5)
-
-high5_forest <- ggplot(high5, aes(x = reorder(country, avg_forested),
-                                      y = avg_forested,
-                                      text = glue("PET: {round(avg_pet * 100, 2)}%
-                                      HDPE: {round(avg_hdpe * 100, 2)}%
-                                      LDPE: {round(avg_ldpe * 100, 2)}%
-                                      PP: {round(avg_pp * 100, 2)}%
-                                      PS: {round(avg_ps * 100, 2)}%
-                                      PVC: {round(avg_pvc * 100, 2)}%
-                                      Other: {round(avg_o * 100, 2)}%"))) +
-  geom_bar(stat = "identity",
-           fill = "#F3D4D5") +
-  coord_flip() +
-  labs(y = "Forest Coverage (%)",
-       x = "",
-       title = "High 5 Forest Coverage Countries") +
-  theme_minimal()
-
-ggplotly(high5_forest, tooltip = "text")
-```
-
-Hover over each bar for plastic waste breakdown:  
-PET = polyester, HDPE = high density polyethylene, LDPE = low density polyethylene, PP = polypropylene, PS = polystyrene, PVC, Other
-:::
-
-### Visualizations
+### Density Ridge {width="50%"}
 
 ::: {.card}
 ```{r}
@@ -324,6 +199,111 @@ population_plastics |>
         legend.position = "none")
 ```
 PP is collected in the most biodiverse countries, while PET dominates in nations with fewer threatened species. LDPE falls in between.
+:::
+
+### Bar Charts {width="50%"}
+
+::: {.panel-tabset}
+#### Low Coverage
+
+```{r}
+#| fig-alt: "Bar chart showing bottom 5 forest coverage countries with plastic waste breakdown"
+#| label: bottom 5 countries bar chart with plastic waste breakdown
+
+bottom5 <- plastic_ecology_summary_table |>
+  mutate(across(everything(),
+                ~replace_na(., 0))
+         ) |>
+  filter(!is.na(avg_forested)) |>
+  slice_min(avg_forested, n = 5)
+
+bottom5_forest <- ggplot(bottom5, aes(x = reorder(country, avg_forested),
+                                      y = avg_forested,
+                                      text = glue("PET: {round(avg_pet * 100, 2)}%
+                                      HDPE: {round(avg_hdpe * 100, 2)}%
+                                      LDPE: {round(avg_ldpe * 100, 2)}%
+                                      PP: {round(avg_pp * 100, 2)}%
+                                      PS: {round(avg_ps * 100, 2)}%
+                                      PVC: {round(avg_pvc * 100, 2)}%
+                                      Other: {round(avg_o * 100, 2)}%"))) +
+  geom_bar(stat = "identity",
+           fill = "#F3D4D5") +
+  coord_flip() +
+  labs(y = "Forest Coverage (%)",
+       x = "",
+       title = "Bottom 5 Forest Coverage Countries") +
+  theme_minimal()
+
+ggplotly(bottom5_forest, tooltip = "text")
+```
+
+#### Medium Coverage
+
+```{r}
+#| fig-alt: "Bar chart showing medium 5 forest coverage countries with plastic waste breakdown"
+#| label: medium 5 countries bar chart with plastic waste breakdown
+
+medium5 <- plastic_ecology_summary_table |>
+  mutate(across(everything(),
+                ~replace_na(., 0))
+         ) |>
+  filter(!is.na(avg_forested),
+         avg_forested >= 19) |>
+  slice_min(avg_forested, n = 5)
+
+medium5_forest <- ggplot(medium5, aes(x = reorder(country, avg_forested),
+                                      y = avg_forested,
+                                      text = glue("PET: {round(avg_pet * 100, 2)}%
+                                      HDPE: {round(avg_hdpe * 100, 2)}%
+                                      LDPE: {round(avg_ldpe * 100, 2)}%
+                                      PP: {round(avg_pp * 100, 2)}%
+                                      PS: {round(avg_ps * 100, 2)}%
+                                      PVC: {round(avg_pvc * 100, 2)}%
+                                      Other: {round(avg_o * 100, 2)}%"))) +
+  geom_bar(stat = "identity",
+           fill = "#F3D4D5") +
+  coord_flip() +
+  labs(y = "Forest Coverage (%)",
+       x = "",
+       title = "Medium 5 Forest Coverage Countries") +
+  theme_minimal()
+
+ggplotly(medium5_forest, tooltip = "text")
+```
+
+#### High Coverage
+
+```{r}
+#| fig-alt: "Bar chart showing top 5 forest coverage countries with plastic waste breakdown"
+#| label: top 5 countries bar chart with plastic waste breakdown
+
+high5 <- plastic_ecology_summary_table |>
+  mutate(across(everything(),
+                ~replace_na(., 0))
+         ) |>
+  filter(!is.na(avg_forested),
+         avg_forested >= 36) |>
+  slice_max(avg_forested, n = 5)
+
+high5_forest <- ggplot(high5, aes(x = reorder(country, avg_forested),
+                                      y = avg_forested,
+                                      text = glue("PET: {round(avg_pet * 100, 2)}%
+                                      HDPE: {round(avg_hdpe * 100, 2)}%
+                                      LDPE: {round(avg_ldpe * 100, 2)}%
+                                      PP: {round(avg_pp * 100, 2)}%
+                                      PS: {round(avg_ps * 100, 2)}%
+                                      PVC: {round(avg_pvc * 100, 2)}%
+                                      Other: {round(avg_o * 100, 2)}%"))) +
+  geom_bar(stat = "identity",
+           fill = "#F3D4D5") +
+  coord_flip() +
+  labs(y = "Forest Coverage (%)",
+       x = "",
+       title = "High 5 Forest Coverage Countries") +
+  theme_minimal()
+
+ggplotly(high5_forest, tooltip = "text")
+```
 :::
 
 # India
@@ -408,7 +388,7 @@ list(
 )
 ```
 
-## Row 2 (height="70%")
+## Row 2 {height="70%"}
 
 ### Column 1
 
