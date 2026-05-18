@@ -11,8 +11,11 @@ editor: source
 ---
 
 ![](peopleCollectingPlastic.jpeg)
+
 <p style="color: gray; font-size: 0.9em; font-style: italic;">
+
 Volunteers participate in a global plastic waste cleanup and brand audit. Image source: Break Free From Plastic, “Branded Vol. II: Identifying the World’s Top Corporate Plastic Polluters,” via Trash Hero World: https://trashhero.org/worlds-top-polluters-revealed-by-break-free-from-plastics-2019-brand-audit/.
+
 </p>
 
 Every year, thousands of volunteers around the world collect plastic waste as part of the Break Free From Plastic (BFFP) movement, a global initiative working to stop plastic pollution at its source and hold companies accountable for the waste they produce. The data they gather not only quantifies the scale of plastic pollution, but also reveals how geography shapes the types of waste found across different regions. Using audit data from 2019–2020 across a range of countries, we investigated whether volunteer participation influences the amount of polyethylene plastic collected, and whether country-level environmental indicators, including forest coverage and threatened-species count, are associated with which types of plastic dominate a country’s waste stream.
@@ -128,7 +131,7 @@ population_plastics <- read_csv("data/population_plastics.csv") |>
 
 ### Do More Volunteers Mean More Polyethylene Found?
 
-We started by examining whether countries with more volunteers tend to collect more polyethylene, one of the most widely used plastic types globally, found in everyday items like bags, bottles, trash cans, and containers. Specifically, we looked at both high density polyethylene (HDPE), found in rigid items like milk jugs and shampoo bottles, and low density polyethylene (LDPE), found in flexible items like plastic bags and squeeze bottles. 
+We started by examining whether countries with more volunteers tend to collect more polyethylene, one of the most widely used plastic types globally, found in everyday items like bags, bottles, trash cans, and containers. Specifically, we looked at both high density polyethylene (HDPE), found in rigid items like milk jugs and shampoo bottles, and low density polyethylene (LDPE), found in flexible items like plastic bags and squeeze bottles.
 
 ```{r}
 #| label: summarize_plastic_volunteer function
@@ -448,6 +451,7 @@ bind_rows(
 The inconsistency across top-volunteer countries points to something beyond participation driving plastic composition. In Table 4, Colombia reported HDPE collection of 20.27%, while Indonesia and the Philippines reported less than 5% of the type, showing no clear relationship between average number of volunteers and proportion of HDPE plastic reported. The LDPE data in Table 5 shows a similar lack of pattern.
 
 Narrowing down our scope to HDPE, we zoomed out to all countries to see if this lack of clear relationship held globally.
+
 ```{r}
 #| label: bubble plot showing average volunteers by hdpe reported across countries
 #| fig-alt: "Bubble plot showing average volunteers by the percentage high density polyethylene type reported across countries, additionally with country statistics when hovering over each circle. Note, the average volunteers are log-scaled to better fit the graph."
@@ -696,7 +700,6 @@ plastic_ecology_summary_table |>
 
 Table 6 shows the five least forested countries within each forest coverage level. Among countries in the low forest-coverage group, PET dominates as the leading plastic for four out of five entries, with Maldives and Tunisia both reporting 100% PET. South Africa is the only exception, where 99.4% of plastic collected falls under the unclassified Other category. As forest coverage level increases into the medium range, the leading plastic shifts away from PET, where Rwanda, China, India, and the Philippines all report Other as their leading type, with Burkina Faso showing a particularly high LDPE proportion at 35.9%. In the high forest-coverage group, we see Cameroon reporting LDPE as its leading plastic at 39.8%, with two countries reporting Other and PET as their leading plastic types. These results suggest that low forest coverage countries tend to be more heavily dominated by PET plastic, while higher coverage countries show more varied plastic composition, though country-specific reporting differences make direct comparisons difficult. The shift away from PET as forest coverage increases is one of the clearest patterns in the dataset.
 
-
 ```{r}
 #| echo: false
 #| output: false
@@ -909,6 +912,7 @@ To look beyond each country’s single leading plastic type, we next focused on 
 ### Are Country-Level Environmental Indicators Associated With What Plastic Gets Collected?
 
 To examine this pattern more formally, we modeled PET proportion as the outcome variable because PET showed the clearest decline across the environmental summaries and contrasted strongly with PP in Figure 4. We built a linear model predicting PET proportion from forest coverage and threatened-species count. We also included GDP per capita and volunteer count to compare environmental predictors with economic and participation-related factors. The ANOVA table below breaks down how much of the variation in PET proportion each predictor explains.
+
 ```{r}
 pet_model <- population_plastics |>
   filter(parent_company == "Grand Total",
