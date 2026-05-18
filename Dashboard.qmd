@@ -20,6 +20,11 @@ format:
       - icon: envelope
         href: mailto:tsobajim@calpoly.edu
         aria-label: Taiga Sobajima
+server: shiny
+execute:
+  echo: false
+  warning: false
+  message: false
 ---
 
 ```{r}
@@ -39,10 +44,12 @@ library(httr)
 library(geodata)
 library(leaflet)
 library(sf)
+
 ```
 
 ```{r}
 #| label: load-data
+#| context: setup
 #| message: false
 
 population_plastics <- read_csv("data/population_plastics.csv") |>
@@ -51,6 +58,19 @@ population_plastics <- read_csv("data/population_plastics.csv") |>
     country == "Taiwan_ Republic Of China (Roc)" ~ "Taiwan",
     TRUE ~ country
   ))
+```
+
+```{css}
+.card-toolbar {
+  padding: 4px 8px;
+  min-height: 0;
+}
+
+.card-toolbar .selectize-input {
+  padding: 2px 6px;
+  min-height: 0;
+  font-size: 12px;
+}
 ```
 
 ```{r}
@@ -111,17 +131,91 @@ gt_style <- function(gt_obj) {
 
 # Main
 
-## Row 1 {height="500px"}
+## Row 1 {height="450px"}
 
 ### Bubble Plot {width="70%" .tabset}
 
 #### Overview
-f
+
+![](https://trashhero.org/wp-content/uploads/2019/10/75166929_1337270093146099_2568898103847419904_o.jpg)
+
+<p style="color: gray; font-size: 0.9em; font-style: italic;">
+Volunteers participate in a global plastic waste cleanup and brand audit. Image source: Break Free From Plastic, “Branded Vol. II: Identifying the World’s Top Corporate Plastic Polluters,” via Trash Hero World: https://trashhero.org/worlds-top-polluters-revealed-by-break-free-from-plastics-2019-brand-audit/.
+</p>
+
+Every year, thousands of volunteers around the world collect plastic waste as part of the Break Free From Plastic (BFFP) movement, a global initiative working to stop plastic pollution at its source and hold companies accountable for the waste they produce. The data they gather not only quantifies the scale of plastic pollution, but also reveals how geography shapes the types of waste found across different regions. Using audit data from 2019–2020 across a range of countries, we investigated whether country-level environmental indicators, including forest coverage and threatened-species count, are associated with which types of plastic dominate a country’s waste stream.
+
+Throughout this dashboard, acronyms will be used to identify plastic types. Here are the following acronyms corresponding to each plastic type: PET - polyester, HDPE - high density polyethylene, LDPE - low density polyethylene, PP - polypropylene, PS - polystyrene, PVC - polyvinyl chloride.
+
+That said, this dataset has some important limitations and potential inconsistencies to consider. The data depends on where volunteers are located, meaning it is more likely to be collected in accessible areas, which can lead to over- or under- representation in some regions and introduce bias. Due to the nature of self-reported data, there is no way for us to verify the accuracy, and there may also be variability in how the plastic is classified and reported to BFFP despite clear definitions. Since our analysis spans both 2019 and 2020, not all countries have data for both years, meaning averages for some countries reflect only a single year. Furthermore, some countries did not record data for certain plastic types; since there are entries with zero, these missing values couldn't be assumed to mean zero and were instead excluded from proportion calculations.
 
 #### Bubble Plots
-bubble plot will be here
-x axis = plastic type count
-y axis = 
+
+```{r}
+#| content: card-toolbar
+
+selectInput("selected_year", "Select Year:",
+            choices = sort(unique(population_plastics$year)),
+            selected = 2019)
+
+selectInput("selected_y", "Select Y Axis:",
+            choices = c("Forest Coverage" = "avg_forested",
+                        "Threatened Species" = "avg_threatened"),
+            selected = "avg_forested")
+```
+
+```{r}
+plotlyOutput("bubble_plot", height = "600px")
+```
+
+```{r}
+#| context: server
+
+bubble_data_reactive <- reactive({
+  req(input$selected_year, input$selected_y)
+  
+  population_plastics |>
+    filter(
+      year == input$selected_year,
+      grand_total > 0
+    ) |>
+    group_by(country) |>
+    summarize(
+      total_plastic = sum(grand_total, na.rm = TRUE),
+      avg_forested = mean(forested_area, na.rm = TRUE),
+      avg_threatened = mean(threatened_species, na.rm = TRUE),
+      .groups = "drop"
+    ) |>
+    filter(!is.na(.data[[input$selected_y]]))
+})
+
+output$bubble_plot <- renderPlotly({
+  data <- bubble_data_reactive()
+  y_var <- input$selected_y
+  y_label <- if (y_var == "avg_forested") "Forest Coverage (%)" else "Threatened Species Count"
+  
+  p <- ggplot(data, aes(x = total_plastic, y = .data[[y_var]], 
+                         size = total_plastic,
+                         label = country,
+                         text = paste0("Country: ", country,
+                                      "<br>Total Plastic: ", scales::comma(total_plastic),
+                                      "<br>", y_label, ": ", round(.data[[y_var]], 1)))) +
+    geom_point(alpha = 0.6, color = "#457B9D") +
+    scale_size_continuous(range = c(2, 12)) +
+    scale_x_log10(labels = scales::label_comma()) +
+    labs(
+      title = paste("Plastic Count vs", y_label, "—", input$selected_year),
+      x = "Total Plastic Collected (log scale)",
+      y = y_label
+    ) +
+    theme_minimal() +
+    theme(plot.title = element_text(face = "bold", size = 14),
+          legend.position = "none")
+  
+  ggplotly(p, tooltip = "text") |>
+  layout(margin = list(l = 50, r = 50, t = 50, b = 50))
+})
+```
 
 ### General {width="30%"}
 
@@ -149,57 +243,73 @@ list(
 )
 ```
 
-```{r}
-#| content: valuebox
-#| title: "Significant Predictor of PET"
-
-list(
-  icon  = "bug",
-  color = "#D3D3D3",
-  value = "Species"
-)
-```
-
 ## Row 2
 
 ### Density Ridge {width="50%"}
 
-::: {.card}
 ```{r}
-#| message: false
-#| label: ridge plot for threatened species
-#| fig-alt: "Ridge plot showing threatened species distribution across top 3 plastic types"
+#| content: card-toolbar
 
-population_plastics |>
-  filter(parent_company == "Grand Total",
-         grand_total > 0,
-         !is.na(threatened_species)
-         ) |>
-  pivot_longer(cols = all_of(top3_plastics),
-               names_to = "plastic_type",
-               values_to = "count") |>
-  filter(count > 0) |>
-  mutate(plastic_type = factor(toupper(plastic_type),
-                               levels = toupper(top3_plastics))
-         ) |>
-  ggplot(aes(x = threatened_species,
-             y = plastic_type,
-             fill = plastic_type,
-             weight = count)
-         ) +
-  geom_density_ridges(scale = 0.8, alpha = 0.7) +
-  scale_x_log10(labels = scales::label_comma()) +
-  scale_fill_manual(values = c("#E8A0A0", "#C45C5C", "#8B1A1A")) +
-  labs(title = "Threatened Species Counts Across Top 3 Plastic Types",
-       subtitle = "Each country weighted by quantity of plastic collected",
-       x = "Threatened Species Count (log scale)", y = "") +
-  theme_minimal() +
-  theme(plot.title = element_text(face = "bold", size = 14),
-        plot.subtitle = element_text(size = 11),
-        legend.position = "none")
+selectizeInput("selected_plastics", "Select Plastics:",
+               choices = c("PET" = "pet",
+                           "HDPE" = "hdpe",
+                           "LDPE" = "ldpe",
+                           "PP" = "pp",
+                           "PS" = "ps",
+                           "PVC" = "pvc"),
+               selected = top3_plastics,
+               multiple = TRUE,
+               options = list(plugins = list("remove_button"),
+                              placeholder = "Click to add a plastic..."))
 ```
-PP is collected in the most biodiverse countries, while PET dominates in nations with fewer threatened species. LDPE falls in between.
-:::
+
+```{r}
+plotOutput("ridge_plot", height = "500px")
+```
+
+```{r}
+#| context: server
+
+ridge_data_reactive <- reactive({
+  req(input$selected_plastics)
+
+  population_plastics |>
+    filter(parent_company == "Grand Total",
+           grand_total > 0,
+           !is.na(threatened_species)
+           ) |>
+    pivot_longer(cols = c(pet, hdpe, ldpe, pp, ps, pvc),
+                 names_to = "plastic_type",
+                 values_to = "count") |>
+    filter(count > 0,
+           plastic_type %in% input$selected_plastics) |>
+    mutate(plastic_type = factor(toupper(plastic_type),
+                                 levels = toupper(input$selected_plastics))
+           )
+})
+
+output$ridge_plot <- renderPlot({
+  data <- ridge_data_reactive()
+  n_plastics <- length(unique(data$plastic_type))
+  ridge_colors <- colorRampPalette(c("#E8A0A0", "#8B1A1A"))(n_plastics)
+
+  ggplot(data, aes(x = threatened_species,
+                   y = plastic_type,
+                   fill = plastic_type,
+                   weight = count)
+         ) +
+    geom_density_ridges(scale = 0.8, alpha = 0.7) +
+    scale_x_log10(labels = scales::label_comma()) +
+    scale_fill_manual(values = ridge_colors) +
+    labs(title = "Threatened Species Counts Across Selected Plastic Types",
+         subtitle = "Each country weighted by quantity of plastic collected",
+         x = "Threatened Species Count (log scale)", y = "") +
+    theme_minimal() +
+    theme(plot.title = element_text(face = "bold", size = 14),
+          plot.subtitle = element_text(size = 11),
+          legend.position = "none")
+})
+```
 
 ### Bar Charts {width="50%"}
 
