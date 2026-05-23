@@ -6,7 +6,7 @@ format:
     scrolling: true
     orientation: rows
     theme: flatly
-    logo: "logo.png"
+    logo: images/logo.png
     nav-buttons:
       - icon: envelope
         href: mailto:nlee174@calpoly.edu
@@ -44,7 +44,6 @@ library(httr)
 library(geodata)
 library(leaflet)
 library(sf)
-
 ```
 
 ```{r}
@@ -105,7 +104,6 @@ summarize_plastic_and_ecology <- function(country_name, data = population_plasti
   country_stats |> mutate(leading_plastic = leading_plastics)
 }
 
-# precompute all needed data
 all_countries_rq2 <- population_plastics |>
   filter(parent_company == "Grand Total", grand_total > 0,
          !is.na(forested_area), !is.na(threatened_species)) |>
@@ -131,7 +129,7 @@ gt_style <- function(gt_obj) {
 
 # Main
 
-## Row 1 {height="450px"}
+## Row 1 {height="750px"}
 
 ### Bubble Plot {width="70%" .tabset}
 
@@ -140,10 +138,10 @@ gt_style <- function(gt_obj) {
 ![](https://trashhero.org/wp-content/uploads/2019/10/75166929_1337270093146099_2568898103847419904_o.jpg)
 
 <p style="color: gray; font-size: 0.9em; font-style: italic;">
-Volunteers participate in a global plastic waste cleanup and brand audit. Image source: Break Free From Plastic, “Branded Vol. II: Identifying the World’s Top Corporate Plastic Polluters,” via Trash Hero World: https://trashhero.org/worlds-top-polluters-revealed-by-break-free-from-plastics-2019-brand-audit/.
+Volunteers participate in a global plastic waste cleanup and brand audit. Image source: Break Free From Plastic, "Branded Vol. II: Identifying the World's Top Corporate Plastic Polluters," via Trash Hero World: https://trashhero.org/worlds-top-polluters-revealed-by-break-free-from-plastics-2019-brand-audit/.
 </p>
 
-Every year, thousands of volunteers around the world collect plastic waste as part of the Break Free From Plastic (BFFP) movement, a global initiative working to stop plastic pollution at its source and hold companies accountable for the waste they produce. The data they gather not only quantifies the scale of plastic pollution, but also reveals how geography shapes the types of waste found across different regions. Using audit data from 2019–2020 across a range of countries, we investigated whether country-level environmental indicators, including forest coverage and threatened-species count, are associated with which types of plastic dominate a country’s waste stream.
+Every year, thousands of volunteers around the world collect plastic waste as part of the Break Free From Plastic (BFFP) movement, a global initiative working to stop plastic pollution at its source and hold companies accountable for the waste they produce. The data they gather not only quantifies the scale of plastic pollution, but also reveals how geography shapes the types of waste found across different regions. Using audit data from 2019–2020 across a range of countries, we investigated whether country-level environmental indicators, including forest coverage and threatened-species count, are associated with which types of plastic dominate a country's waste stream.
 
 Throughout this dashboard, acronyms will be used to identify plastic types. Here are the following acronyms corresponding to each plastic type: PET - polyester, HDPE - high density polyethylene, LDPE - low density polyethylene, PP - polypropylene, PS - polystyrene, PVC - polyvinyl chloride.
 
@@ -153,10 +151,6 @@ That said, this dataset has some important limitations and potential inconsisten
 
 ```{r}
 #| content: card-toolbar
-
-selectInput("selected_year", "Select Year:",
-            choices = sort(unique(population_plastics$year)),
-            selected = 2019)
 
 selectInput("selected_y", "Select Y Axis:",
             choices = c("Forest Coverage" = "avg_forested",
@@ -171,49 +165,48 @@ plotlyOutput("bubble_plot", height = "600px")
 ```{r}
 #| context: server
 
-bubble_data_reactive <- reactive({
-  req(input$selected_year, input$selected_y)
-  
-  population_plastics |>
-    filter(
-      year == input$selected_year,
-      grand_total > 0
-    ) |>
-    group_by(country) |>
+output$bubble_plot <- renderPlotly({
+  y_var <- input$selected_y
+  y_label <- if (y_var == "avg_forested") "Forest Coverage (%)" else "Threatened Species Count"
+
+  data <- population_plastics |>
+    filter(grand_total > 0) |>
+    group_by(country, year) |>
     summarize(
       total_plastic = sum(grand_total, na.rm = TRUE),
       avg_forested = mean(forested_area, na.rm = TRUE),
       avg_threatened = mean(threatened_species, na.rm = TRUE),
       .groups = "drop"
     ) |>
-    filter(!is.na(.data[[input$selected_y]]))
-})
+    filter(!is.na(.data[[y_var]]))
 
-output$bubble_plot <- renderPlotly({
-  data <- bubble_data_reactive()
-  y_var <- input$selected_y
-  y_label <- if (y_var == "avg_forested") "Forest Coverage (%)" else "Threatened Species Count"
-  
-  p <- ggplot(data, aes(x = total_plastic, y = .data[[y_var]], 
-                         size = total_plastic,
-                         label = country,
-                         text = paste0("Country: ", country,
-                                      "<br>Total Plastic: ", scales::comma(total_plastic),
-                                      "<br>", y_label, ": ", round(.data[[y_var]], 1)))) +
-    geom_point(alpha = 0.6, color = "#457B9D") +
-    scale_size_continuous(range = c(2, 12)) +
-    scale_x_log10(labels = scales::label_comma()) +
-    labs(
-      title = paste("Plastic Count vs", y_label, "—", input$selected_year),
-      x = "Total Plastic Collected (log scale)",
-      y = y_label
-    ) +
-    theme_minimal() +
-    theme(plot.title = element_text(face = "bold", size = 14),
-          legend.position = "none")
-  
-  ggplotly(p, tooltip = "text") |>
-  layout(margin = list(l = 50, r = 50, t = 50, b = 50))
+  plot_ly(data,
+          x = ~total_plastic,
+          y = ~.data[[y_var]],
+          size = ~total_plastic,
+          color = ~country,
+          colors = viridisLite::viridis(n_distinct(data$country)),
+          frame = ~year,
+          text = ~paste0("Country: ", country,
+                         "<br>Total Plastic: ", scales::comma(total_plastic),
+                         "<br>", y_label, ": ", round(.data[[y_var]], 1)),
+          hoverinfo = "text",
+          type = "scatter",
+          mode = "markers",
+          marker = list(opacity = 0.7, sizemode = "diameter", sizeref = 3)
+  ) |>
+    layout(
+      xaxis = list(title = "Total Plastic Collected (log scale)",
+                   type = "log", range = c(0, 6)),
+      yaxis = list(title = y_label),
+      margin = list(l = 60, r = 30, t = 20, b = 40),
+      showlegend = FALSE
+    ) |>
+    animation_opts(frame = 2500, transition = 2000, easing = "cubic-in-out", redraw = FALSE) |>
+    animation_button(label = "▶ Play", x = 0.05, xanchor = "left",
+                     y = -0.15, yanchor = "top") |>
+    animation_slider(currentvalue = list(prefix = "Year: "),
+                     len = 0.5, x = 0.25)
 })
 ```
 
@@ -227,7 +220,7 @@ output$bubble_plot <- renderPlotly({
 
 list(
   icon = "globe",
-  color = "#D3D3D3",
+  color = "#A8C8E8",
   value = n_distinct(all_countries_rq2)
 )
 ```
@@ -238,12 +231,70 @@ list(
 
 list(
   icon  = "recycle",
-  color = "#D3D3D3",
+  color = "#D4E8F0",
   value = "PET"
 )
 ```
 
 ## Row 2
+
+### Summary Table
+
+```{r}
+#| title: "Plastic Composition by Threatened-Species Tier"
+
+population_plastics |>
+  filter(
+    parent_company == "Grand Total",
+    grand_total > 0,
+    !is.na(threatened_species),
+    !is.na(forested_area)
+  ) |>
+  mutate(
+    pet_prop  = pet  / grand_total,
+    hdpe_prop = hdpe / grand_total,
+    ldpe_prop = ldpe / grand_total,
+    pp_prop   = pp   / grand_total,
+    ps_prop   = ps   / grand_total,
+    pvc_prop  = pvc  / grand_total,
+    o_prop    = o    / grand_total,
+    threatened_species_level = cut(threatened_species,
+                      breaks = c(0, 131, 556, Inf),
+                      labels = c("Low (< 131)",
+                                 "Medium (131-556)",
+                                 "High (> 556)"))
+  ) |>
+  group_by(threatened_species_level) |>
+  summarize(
+    n_countries = n_distinct(country),
+    avg_pet  = mean(pet_prop,  na.rm = TRUE),
+    avg_hdpe = mean(hdpe_prop, na.rm = TRUE),
+    avg_ldpe = mean(ldpe_prop, na.rm = TRUE),
+    avg_pp   = mean(pp_prop,   na.rm = TRUE),
+    avg_ps   = mean(ps_prop,   na.rm = TRUE),
+    avg_pvc  = mean(pvc_prop,  na.rm = TRUE),
+    avg_o    = mean(o_prop,    na.rm = TRUE)
+  ) |>
+  gt() |>
+  cols_label(
+    threatened_species_level = "Threatened-Species Tier",
+    n_countries = "Countries",
+    avg_pet  = "PET",
+    avg_hdpe = "HDPE",
+    avg_ldpe = "LDPE",
+    avg_pp   = "PP",
+    avg_ps   = "PS",
+    avg_pvc  = "PVC",
+    avg_o    = "Other"
+  ) |>
+  fmt_percent(columns = avg_pet:avg_o, decimals = 1) |>
+  tab_spanner(label = "Average Plastic Proportion", columns = avg_pet:avg_o) |>
+  gt_style()
+```
+
+# Plots
+
+## Row 1
 
 ### Density Ridge {width="50%"}
 
@@ -320,28 +371,36 @@ output$ridge_plot <- renderPlot({
 #| fig-alt: "Bar chart showing bottom 5 forest coverage countries with plastic waste breakdown"
 #| label: bottom 5 countries bar chart with plastic waste breakdown
 
+plastic_colors <- c("PET"   = "#FADADD",
+                    "HDPE"  = "#F4A0A8",
+                    "LDPE"  = "#E8A0A0",
+                    "PP"    = "#C45C5C",
+                    "PS"    = "#A83232",
+                    "PVC"   = "#8B1A1A",
+                    "Other" = "#D3D3D3")
+
 bottom5 <- plastic_ecology_summary_table |>
-  mutate(across(everything(),
-                ~replace_na(., 0))
-         ) |>
+  mutate(across(everything(), ~replace_na(., 0))) |>
   filter(!is.na(avg_forested)) |>
   slice_min(avg_forested, n = 5)
 
 bottom5_forest <- ggplot(bottom5, aes(x = reorder(country, avg_forested),
                                       y = avg_forested,
-                                      text = glue("PET: {round(avg_pet * 100, 2)}%
-                                      HDPE: {round(avg_hdpe * 100, 2)}%
-                                      LDPE: {round(avg_ldpe * 100, 2)}%
-                                      PP: {round(avg_pp * 100, 2)}%
-                                      PS: {round(avg_ps * 100, 2)}%
-                                      PVC: {round(avg_pvc * 100, 2)}%
-                                      Other: {round(avg_o * 100, 2)}%"))) +
-  geom_bar(stat = "identity",
-           fill = "#F3D4D5") +
+                                      fill = leading_plastic,
+                                      text = glue("Leading Plastic: {leading_plastic}
+PET: {round(avg_pet * 100, 2)}%
+HDPE: {round(avg_hdpe * 100, 2)}%
+LDPE: {round(avg_ldpe * 100, 2)}%
+PP: {round(avg_pp * 100, 2)}%
+PS: {round(avg_ps * 100, 2)}%
+PVC: {round(avg_pvc * 100, 2)}%
+Other: {round(avg_o * 100, 2)}%"))) +
+  geom_bar(stat = "identity") +
+  scale_fill_manual(values = plastic_colors) +
   coord_flip() +
-  labs(y = "Forest Coverage (%)",
-       x = "",
-       title = "Bottom 5 Forest Coverage Countries") +
+  labs(y = "Forest Coverage (%)", x = "",
+       title = "Bottom 5 Forest Coverage Countries",
+       fill = "Leading Plastic") +
   theme_minimal()
 
 ggplotly(bottom5_forest, tooltip = "text")
@@ -354,28 +413,27 @@ ggplotly(bottom5_forest, tooltip = "text")
 #| label: medium 5 countries bar chart with plastic waste breakdown
 
 medium5 <- plastic_ecology_summary_table |>
-  mutate(across(everything(),
-                ~replace_na(., 0))
-         ) |>
-  filter(!is.na(avg_forested),
-         avg_forested >= 19) |>
+  mutate(across(everything(), ~replace_na(., 0))) |>
+  filter(!is.na(avg_forested), avg_forested >= 19) |>
   slice_min(avg_forested, n = 5)
 
 medium5_forest <- ggplot(medium5, aes(x = reorder(country, avg_forested),
                                       y = avg_forested,
-                                      text = glue("PET: {round(avg_pet * 100, 2)}%
-                                      HDPE: {round(avg_hdpe * 100, 2)}%
-                                      LDPE: {round(avg_ldpe * 100, 2)}%
-                                      PP: {round(avg_pp * 100, 2)}%
-                                      PS: {round(avg_ps * 100, 2)}%
-                                      PVC: {round(avg_pvc * 100, 2)}%
-                                      Other: {round(avg_o * 100, 2)}%"))) +
-  geom_bar(stat = "identity",
-           fill = "#F3D4D5") +
+                                      fill = leading_plastic,
+                                      text = glue("Leading Plastic: {leading_plastic}
+PET: {round(avg_pet * 100, 2)}%
+HDPE: {round(avg_hdpe * 100, 2)}%
+LDPE: {round(avg_ldpe * 100, 2)}%
+PP: {round(avg_pp * 100, 2)}%
+PS: {round(avg_ps * 100, 2)}%
+PVC: {round(avg_pvc * 100, 2)}%
+Other: {round(avg_o * 100, 2)}%"))) +
+  geom_bar(stat = "identity") +
+  scale_fill_manual(values = plastic_colors) +
   coord_flip() +
-  labs(y = "Forest Coverage (%)",
-       x = "",
-       title = "Medium 5 Forest Coverage Countries") +
+  labs(y = "Forest Coverage (%)", x = "",
+       title = "Medium 5 Forest Coverage Countries",
+       fill = "Leading Plastic") +
   theme_minimal()
 
 ggplotly(medium5_forest, tooltip = "text")
@@ -388,34 +446,33 @@ ggplotly(medium5_forest, tooltip = "text")
 #| label: top 5 countries bar chart with plastic waste breakdown
 
 high5 <- plastic_ecology_summary_table |>
-  mutate(across(everything(),
-                ~replace_na(., 0))
-         ) |>
-  filter(!is.na(avg_forested),
-         avg_forested >= 36) |>
+  mutate(across(everything(), ~replace_na(., 0))) |>
+  filter(!is.na(avg_forested), avg_forested >= 36) |>
   slice_max(avg_forested, n = 5)
 
 high5_forest <- ggplot(high5, aes(x = reorder(country, avg_forested),
                                       y = avg_forested,
-                                      text = glue("PET: {round(avg_pet * 100, 2)}%
-                                      HDPE: {round(avg_hdpe * 100, 2)}%
-                                      LDPE: {round(avg_ldpe * 100, 2)}%
-                                      PP: {round(avg_pp * 100, 2)}%
-                                      PS: {round(avg_ps * 100, 2)}%
-                                      PVC: {round(avg_pvc * 100, 2)}%
-                                      Other: {round(avg_o * 100, 2)}%"))) +
-  geom_bar(stat = "identity",
-           fill = "#F3D4D5") +
+                                      fill = leading_plastic,
+                                      text = glue("Leading Plastic: {leading_plastic}
+PET: {round(avg_pet * 100, 2)}%
+HDPE: {round(avg_hdpe * 100, 2)}%
+LDPE: {round(avg_ldpe * 100, 2)}%
+PP: {round(avg_pp * 100, 2)}%
+PS: {round(avg_ps * 100, 2)}%
+PVC: {round(avg_pvc * 100, 2)}%
+Other: {round(avg_o * 100, 2)}%"))) +
+  geom_bar(stat = "identity") +
+  scale_fill_manual(values = plastic_colors) +
   coord_flip() +
-  labs(y = "Forest Coverage (%)",
-       x = "",
-       title = "High 5 Forest Coverage Countries") +
+  labs(y = "Forest Coverage (%)", x = "",
+       title = "High 5 Forest Coverage Countries",
+       fill = "Leading Plastic") +
   theme_minimal()
 
 ggplotly(high5_forest, tooltip = "text")
 ```
-:::
 
+:::
 # India
 
 ```{r}
@@ -423,7 +480,6 @@ ggplotly(high5_forest, tooltip = "text")
 
 URL <- "https://www.pib.gov.in/PressReleasePage.aspx?PRID=1943210&reg=3&lang=2"
 
-# used AI here to help get url, basically disguises so we can fetch the data
 page <- GET(URL, user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64)"))
 
 tables_india <- content(page, "text") |>
@@ -465,7 +521,7 @@ india_df <- india_GADM |>
 
 list(
   icon = "geo-fill",
-  color = "#D3D3D3",
+  color = "#A8C8E8",
   value = "India"
 )
 ```
@@ -477,7 +533,7 @@ list(
 
 list(
   icon = "exclamation-triangle",
-  color = "#D3D3D3",
+  color = "#F4A6AA",
   value = "1,118"
 )
 ```
@@ -493,7 +549,7 @@ india_forest <- plastic_ecology_summary_table |>
 
 list(
   icon = "tree",
-  color = "#D3D3D3",
+  color = "#A8D8C8",
   value = paste0(india_forest, "%")
 )
 ```
